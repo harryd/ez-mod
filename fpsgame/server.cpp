@@ -229,6 +229,7 @@ namespace server
         bool warned, gameclip;
         ENetPacket *clipboard;
         int lastclipboard, needclipboard;
+		bool mute;
 
         clientinfo() : clipboard(NULL) { reset(); }
         ~clientinfo() { events.deletecontents(); cleanclipboard(); }
@@ -554,7 +555,7 @@ namespace server
 	}
 	string blkmsg[3] = {"fuck", "shit", "cunt"};
 	char textcmd(const char *a, const char *text){
-		for (int b=0; b<strlen(a); b++) {
+		for (int b=0; b<int(strlen(a)); b++) {
 			if (text[b+1] != a[b]) {
 				return false;
 			}
@@ -572,7 +573,7 @@ namespace server
 	}
 	void textblk(const char *b, char *text, clientinfo *ci){
 		bool bad=false;
-		for (int a=0; a<strlen(text); a++) {
+		for (int a=0; a<int(strlen(text)); a++) {
 			if(textcmd(b, text+a-1)) bad=true;
 		}
 		if(bad){
@@ -2479,10 +2480,7 @@ namespace server
                 
                 if(ci)
                 {
-                    if(text[0] == '#' || text[0] == '@') {
-						int space;
-						char *c = text;
-						while(*c && isspace(*c)) c++;
+                    if((text[0] == '#' || text[0] == '@') && !ci->mute) {
 						std::string arg = ezcmd(text+1,0);
 						
 
@@ -2506,7 +2504,6 @@ namespace server
 							\f7   White   Any other text
 							\f5   Purple  Player Names
 						*/
-
 						if(arg == "help")
 						{
 							arg = ezcmd(text+1,1); //Pull first arg
@@ -2548,7 +2545,41 @@ namespace server
 								} else ezhelp(ci,"whisper");
 							}
 							else ezhelp(ci,"whisper");
-						}else if(text[1] == '#' || text[1] == '@') {
+						}
+						else if(arg == "givemaster")
+						{
+							if(ci->privilege > 0)
+							{
+								std::string d = ezcmd(text+1,1);
+								if(!d.empty())
+								{
+									int cn = ezplayer(d.c_str());
+									clients[cn]->privilege = PRIV_MASTER;
+									defformatstring(a)("\f0Master given to \f5%s", clients[cn]->name);
+									sendf(ci->clientnum, 1, "ris", N_SERVMSG, a);
+									} else ezhelp(ci,"givemaster");
+							}
+						}
+						else if(arg == "mute")
+						{
+							std::string d = ezcmd(text+1,1);
+							if(!d.empty())
+							{
+								string s;
+								int cn = ezplayer(d.c_str());
+								if(!clients[cn]->mute)
+								{
+									formatstring(s)("\f1Muted \f5%s",clients[cn]->name);
+									clients[cn]->mute = true;
+								} else {
+									formatstring(s)("\f1Unmuted \f5%s",clients[cn]->name);
+									clients[cn]->mute = false;
+								}
+								sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
+							}
+							else ezhelp(ci,"mute");
+						}
+						else if(text[1] == '#' || text[1] == '@') {
 							QUEUE_AI;
 							QUEUE_INT(N_TEXT);
 							QUEUE_STR(text+1);
@@ -2557,13 +2588,20 @@ namespace server
 							sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: \f2Command not found");
 							break;
 						}
-                    }else{
-						for (int a=0; a<(strlen(*blkmsg)-1); a++) {
-							textblk(blkmsg[a], text, ci);
+                    }else {
+						if(ci->mute)
+						{
+							sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3You are mute!");
 						}
-						QUEUE_AI;
-						QUEUE_INT(N_TEXT);
-						QUEUE_STR(text);
+						else
+						{
+							for (int a=0; a<int(strlen(*blkmsg)-1); a++) {
+								textblk(blkmsg[a], text, ci);
+							}
+							QUEUE_AI;
+							QUEUE_INT(N_TEXT);
+							QUEUE_STR(text);
+						}
 					}
 				}
                 break;
