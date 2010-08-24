@@ -1,5 +1,5 @@
 #include "game.h"
-#include <string.h>
+
 
 
 namespace game
@@ -509,15 +509,15 @@ namespace server
 	}
 	void ezhelp(const clientinfo * ci, const char * cmd)
 	{
-		if(strcmp(cmd,"servsay") == 0)
+		if(strcmp(cmd,"servsay")==0)
 		{
 			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#servsay \f4(\f7server message\f4)\f7\nDisplays a server message.\n\f3#serversay \f7The cheater has been banned!");
 		}
-		else if(strcmp(cmd,"servsayanon") == 0)
+		else if(strcmp(cmd,"servsayanon")==0)
 		{
 			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#servsayanon \f4(\f7server message\f4)\f7\nDisplays an anonymous server message.\n\f3#servsayanon \f7Starting a Clan War!");
 		}
-		else if(strcmp(cmd,"whisper") == 0)
+		else if(strcmp(cmd,"whisper")==0)
 		{
 			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#whisper \f6(who) \f4(\f7chat message\f4)\f7\nSend a private message to another client.\n\f3#whisper \f6RandomGuy \f7Nice Shot!\n\f3#whisper\f6 7 \f7Sorry for the teamkill!");
 		}
@@ -539,16 +539,16 @@ namespace server
         {
             clientinfo *o = clients[i];
             if(!strcmp(name, o->name)) return o->clientnum;
-			defformatstring(s)("%s ?== %s",name,o->name );
-			sendservmsg(s);
+			//defformatstring(s)("%s ?== %s",name,o->name );
+			//sendservmsg(s);
         }
         // nothing found, try case insensitive
         loopv(clients)
         {
             clientinfo *o = clients[i];
             if(!strcasecmp(name, o->name)) return o->clientnum;
-			defformatstring(s)("%s ?== %s",name,o->name );
-			sendservmsg(s);
+			//defformatstring(s)("%s ?== %s",name,o->name );
+			//sendservmsg(s);
         }
         return -1;
 	}
@@ -580,24 +580,6 @@ namespace server
 			defformatstring(d)("\f%iO_o  \f0%s!", n, ci->name);
 			sendservmsg(d);
 			bad=false;
-		}
-	}
-	int textcn(char *text){
-		bool number1=false;
-		bool number2=false;
-		const char *nums="0123456789";
-		for (int l=0; l<2; l++) {
-			for (int n=0; n<strlen(nums); n++) {
-				if (text[l]==nums[n]) {
-					number1=true;
-				}
-				if (text[l+1]==nums[n]) {
-					number2=true;
-				}
-			}
-			if (number2) {
-				//inprogress
-			}
 		}
 	}
 	//EZ test
@@ -2566,21 +2548,6 @@ namespace server
 								} else ezhelp(ci,"whisper");
 							}
 							else ezhelp(ci,"whisper");
-						}
-						else if(arg == "givemaster")
-						{
-							if(ci->privilege > 0)
-							{
-								std::string d = ezcmd(text+1,1);
-								if(!d.empty())
-								{
-									int cn = ezplayer(d.c_str());
-									clients[cn]->privilege = PRIV_MASTER;
-									defformatstring(a)("\f0Master given to \f5%s", clients[cn]->name);
-									sendf(ci->clientnum, 1, "ris", N_SERVMSG, a);
-								} else ezhelp(ci,"givemaster");
-							}
-							
 						}else if(text[1] == '#' || text[1] == '@') {
 							QUEUE_AI;
 							QUEUE_INT(N_TEXT);
@@ -2590,25 +2557,15 @@ namespace server
 							sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: \f2Command not found");
 							break;
 						}
-                    }
-                    
-                   // if(signal_text(ci->clientnum, text) != -1)
-                    //{
-					/*for (int a=0; a<strlen(text); a++) {
-						char *textt=text+a-1;
-						if(textcmd("fuck", textt)) {
-							defformatstring(d)("\f6O_o  \f0%s\f7, watch your language!", ci->name);
-							sendservmsg(d);
+                    }else{
+						for (int a=0; a<(strlen(*blkmsg)-1); a++) {
+							textblk(blkmsg[a], text, ci);
 						}
-					}*/
-					for (int a=0; a<(strlen(*blkmsg)-1); a++) {
-						textblk(blkmsg[a], text, ci);
+						QUEUE_AI;
+						QUEUE_INT(N_TEXT);
+						QUEUE_STR(text);
 					}
-					QUEUE_AI;
-					QUEUE_INT(N_TEXT);
-					QUEUE_STR(text);
-                   // }
-                }
+				}
                 break;
             } //EZ test
 
@@ -3070,4 +3027,3 @@ namespace server
 
     #include "aiman.h"
 }
-
