@@ -481,6 +481,77 @@ namespace server
         return false;
     }
 	 //EZ test
+	std::string ezcmd(const std::string &text, int index, bool toend = false)
+	{
+		uint space;
+		std::string arg(""),substr(text);
+		for(int seg = 0, args = 0; seg <= index; seg++)
+		{
+			space = substr.find_first_of(' ');
+			if(space != std::string::npos)
+			{
+				if(!toend) arg = substr.substr(0,space);
+				else arg = substr;
+				substr = substr.substr(space+1,substr.length());
+				args++;
+			}
+			else if(index == 0) //Wishing for the first argument
+			{
+				return text;
+			}
+			else if(!substr.empty() && args == index) //Are we caught on the last one with no more spaces?
+			{
+				return substr;
+			}
+			else return "";
+		}
+		return arg;
+	}
+	void ezhelp(const clientinfo * ci, const char * cmd)
+	{
+		if(cmd == "servsay")
+		{
+			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#servsay \f4(\f7server message\f4)\f7\nDisplays a server message.\n\f3#serversay \f7The cheater has been banned!");
+		}
+		else if(cmd == "servsayanon")
+		{
+			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#servsayanon \f4(\f7server message\f4)\f7\nDisplays an anonymous server message.\n\f3#servsayanon \f7Starting a Clan War!");
+		}
+		else if(cmd == "whisper")
+		{
+			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#whisper \f6(who) \f4(\f7chat message\f4)\f7\nSend a private message to another client.\n\f3#whisper \f6RandomGuy \f7Nice Shot!\n\f3#whisper\f6 7 \f7Sorry for the teamkill!");
+		}
+		else
+		{
+			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Current server commands are: \f3#servsay\f7, \f3#servsayanon\f7, and \f3#whisper\f7.\nType \f3#help \f4(\f7command name\f4)\f7 for more information.");
+		}
+	}
+	int ezplayer(const char * name) {
+		char *end;
+        int n = strtol(name, &end, 10);
+        if(*name && !*end)
+        {
+			loopv(clients) if(clients[i]->clientnum == n) return n;
+            return -2;
+        }
+        // try case sensitive first
+        loopv(clients)
+        {
+            clientinfo *o = clients[i];
+            if(!strcmp(name, o->name)) return o->clientnum;
+			defformatstring(s)("%s ?== %s",name,o->name );
+			sendservmsg(s);
+        }
+        // nothing found, try case insensitive
+        loopv(clients)
+        {
+            clientinfo *o = clients[i];
+            if(!strcasecmp(name, o->name)) return o->clientnum;
+			defformatstring(s)("%s ?== %s",name,o->name );
+			sendservmsg(s);
+        }
+        return -1;
+	}
 	string blkmsg[3] = {"fuck", "shit", "cunt"};
 	char textcmd(const char *a, const char *text){
 		for (int b=0; b<strlen(a); b++) {
@@ -2430,37 +2501,74 @@ namespace server
 						int space;
 						char *c = text;
 						while(*c && isspace(*c)) c++;
+						std::string arg = ezcmd(text+1,0);
 						
 
-						if(textcmd("help", text)) {
-							if(textcmd("me", text+5)) {sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f2Usage: \f7#me (stuff)");break;}
-							if(textcmd("say", text+5)) {sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f2Usage: \f7#say (stuff)");break;}
-							if(textcmd("whisper", text+5)) {sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f2Usage: \f7#whisper (cn) (stuff)");break;}
-							sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f2Current server commands are: \f7me\f2, \f7say\f2, and \f7whisper\f2.\nType \f0#help (command) \f2for more information.");
-							break;
-						}else if(textcmd("test", text)){
-							sendf(ci->clientnum, 1, "ris", N_SERVMSG, "test");
-							break;
-						}else if(textcmd("me", text)) {
-							if(text[3] == ' ') {
+						/*
+							"\f0Green"
+							"\f1Blue"
+							"\f2Yellow"
+							"\f3Red"
+							"\f4Grey"
+							"\f5Purple"
+							"\f6Orange"
+							"\f7White"
+
+							Color as follows:
+							\f3   Red     Commands
+							\f4   Grey    multi-argument strings
+							\f6   Orange  Client Number / Player Name
+							\f2   Yellow  Server Messages
+							\f0   Green   Client Status Messages
+							\f1   Blue    Messages directed at a single client
+							\f7   White   Any other text
+							\f5   Purple  Player Names
+						*/
+
+						if(arg == "help")
+						{
+							arg = ezcmd(text+1,1); //Pull first arg
+							ezhelp(ci,arg.c_str());
+						}
+						else if(arg == "servsay") 
+						{
+							arg = ezcmd(text+1,1,true);
+							if(!arg.empty())
+							{
 								//message("* \f1%s\f7 %s", ci->name, c);
-								defformatstring(s)("*\f1%s\f7%s", ci->name, text+3);
+								defformatstring(s)("\f5%s: \f7%s", ci->name, arg.c_str());
 								sendservmsg(s);
-								break;
-							}else if(text[3] == '\0') {
-								sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f2Usage: \f7#me (stuff)");
-								break;
 							}
-						}else if(textcmd("say", text)) {
-							if(text[4] == ' ') {
-								defformatstring(d)("\f6%s", text+5);
+							else ezhelp(ci,"servsay");
+						}
+						else if(arg == "servsayanon") {
+							arg = ezcmd(text+1,1,true);
+							if(!arg.empty())
+							{
+								defformatstring(d)("\f2%s", arg.c_str());
 								sendservmsg(d);
-								break;
-							}else if(text[4] == '\0') {
-								sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f2Usage: \f7#say (stuff)");
-								break;
 							}
-						}else if(textcmd("whisper", text)) { //FIX ME: add support for client numbers >9
+							else ezhelp(ci,"servsayanon");
+						}
+						else if(arg == "whisper")
+						{
+							std::string d = ezcmd(text+1,1);
+							if(!d.empty())
+							{
+								int cn = ezplayer(d.c_str());
+								d = ezcmd(text+1,2,true);
+								if(!d.empty() && cn >=0)
+								{
+									defformatstring(s)("\f5%s to %s->\f1%s", ci->name, clients[cn]->name,d.c_str());
+									sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
+									defformatstring(a)("\f5%s->\f1%s", ci->name,d.c_str());
+									sendf(clients[cn]->clientnum, 1, "ris", N_SERVMSG, a);
+								} else ezhelp(ci,"whisper");
+							}
+							else ezhelp(ci,"whisper");
+						}
+						else if(textcmd("whisperx", text)) { //FIX ME: add support for client numbers >9
+							
 							if(text[8] == ' ') {
 								if(text[10] == ' '){
 									int i = text[9] - '0';
