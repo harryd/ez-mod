@@ -2210,6 +2210,7 @@ namespace server
                 clients.add(ci);
 
                 ci->connected = true;
+				ci->mute = false;
 				if(ezeditautomute == 1) ci->editmute = true;
                 ci->needclipboard = totalmillis;
                 if(mastermode>=MM_LOCKED) ci->state.state = CS_SPECTATOR;
@@ -2494,7 +2495,7 @@ namespace server
                 
                 if(ci)
                 {
-                    if((text[0] == '#' || text[0] == '@') && !ci->mute) {
+                    if((text[0] == '#' || text[0] == '@') && (!ci->mute || ci->privilege > 0)) {
 						std::string arg = ezcmd(text+1,0);
 						
 
@@ -2560,38 +2561,50 @@ namespace server
 							}
 							else ezhelp(ci,"whisper");
 						}
-						else if(arg == "givemaster")
+						else if(arg == "givemaster" && ci->privilege > 0)
 						{
-							if(ci->privilege > 0)
+							std::string d = ezcmd(text+1,1);
+							if(!d.empty())
 							{
-								std::string d = ezcmd(text+1,1);
-								if(!d.empty())
-								{
-									int cn = ezplayer(d.c_str());
+								int cn = ezplayer(d.c_str());
+								if(cn >= 0) {
 									clients[cn]->privilege = PRIV_MASTER;
 									defformatstring(a)("\f0Master given to \f5%s", clients[cn]->name);
 									sendf(ci->clientnum, 1, "ris", N_SERVMSG, a);
-									} else ezhelp(ci,"givemaster");
-							}
+								} else sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Failed!");
+							} else ezhelp(ci,"givemaster");
 						}
-						else if(arg == "mute")
+						else if(arg == "mute" && ci->privilege > 0)
 						{
 							std::string d = ezcmd(text+1,1);
 							if(!d.empty())
 							{
 								string s;
 								int cn = ezplayer(d.c_str());
-								if(!clients[cn]->mute)
+								if(cn >= 0)
 								{
 									formatstring(s)("\f1Muted \f5%s",clients[cn]->name);
 									clients[cn]->mute = true;
-								} else {
-									formatstring(s)("\f1Unmuted \f5%s",clients[cn]->name);
-									clients[cn]->mute = false;
-								}
-								sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
+									sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
+								} else sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Failed!");
 							}
 							else ezhelp(ci,"mute");
+						}
+						else if(arg == "unmute" && ci->privilege > 0)
+						{
+							std::string d = ezcmd(text+1,1);
+							if(!d.empty())
+							{
+								string s;
+								int cn = ezplayer(d.c_str());
+								if(cn >= 0)
+								{
+									formatstring(s)("\f1Unmuted \f5%s",clients[cn]->name);
+									clients[cn]->mute = false;
+									sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
+								} else sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Failed!");
+							}
+							else ezhelp(ci,"unmute");
 						}
 						else if(arg == "edit" && ci->privilege > 0)
 						{
@@ -2605,6 +2618,7 @@ namespace server
 								else ezeditautomute = ezeditautomute == 1 ? 0 : 1; // toggle
 								if(ezeditautomute == 1) formatstring(l)("\f0Auto mute editors enabled!");
 								else formatstring(l)("\f0Auto mute editors disabled!");
+								sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
 							}
 							else if(arg == "mute")
 							{
@@ -2641,7 +2655,7 @@ namespace server
 								sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
 							}
 						}
-						else if(arg == "kill"&&ci->privilege>0)
+						else if(arg == "kill" && ci->privilege > 0)
 						{
 						   std::string d = ezcmd(text+1,1);
 						   if(!d.empty()) 
@@ -2772,7 +2786,7 @@ namespace server
                 loopk(3) getint(p);
                 int type = getint(p);
                 loopk(5) getint(p);
-                if(!ci || ci->state.state==CS_SPECTATOR) break;
+				if(!ci || ci->state.state==CS_SPECTATOR || ci->editmute) break;
                 QUEUE_MSG;
                 bool canspawn = canspawnitem(type);
                 if(i<MAXENTS && (sents.inrange(i) || canspawnitem(type)))
@@ -2799,7 +2813,7 @@ namespace server
                     case ID_FVAR: getfloat(p); break;
                     case ID_SVAR: getstring(text, p);
                 }
-                if(ci && ci->state.state!=CS_SPECTATOR) QUEUE_MSG;
+				if(ci && ci->state.state!=CS_SPECTATOR && !ci->editmute) QUEUE_MSG;
                 break;
             }
 
@@ -2971,7 +2985,7 @@ namespace server
             case N_NEWMAP:
             {
                 int size = getint(p);
-                if(!ci->privilege && !ci->local && ci->state.state==CS_SPECTATOR) break;
+				if((!ci->privilege && !ci->local && ci->state.state==CS_SPECTATOR) || ci->editmute) break;
                 if(size>=0)
                 {
                     smapname[0] = '\0';
@@ -3056,6 +3070,7 @@ namespace server
     
             case N_CLIPBOARD:
             {
+				if(ci->editmute) break;
                 int unpacklen = getint(p), packlen = getint(p); 
                 ci->cleanclipboard(false);
                 if(ci->state.state==CS_SPECTATOR)
@@ -3092,6 +3107,23 @@ namespace server
                 disconnect_client(sender, DISC_OVERFLOW);
                 return;
 
+			/*case N_EDITMODE:
+			case N_EDITENT:
+			case N_EDITVAR:
+			case N_COPY:
+			case N_PASTE:
+			case N_NEWMAP:
+			case N_GETMAP:*/
+			case N_EDITF:
+			case N_EDITT:
+			case N_EDITM:
+			case N_FLIP:
+			case N_ROTATE:
+			case N_REPLACE:
+			case N_DELCUBE:
+			case N_REMIP:
+			case N_SENDMAP:
+			if(ci->editmute) break;
             default: genericmsg:
             {
                 int size = server::msgsizelookup(type);
