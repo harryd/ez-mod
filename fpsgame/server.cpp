@@ -509,15 +509,15 @@ namespace server
 	}
 	void ezhelp(const clientinfo * ci, const char * cmd)
 	{
-		if(cmd == "servsay")
+		if(strcmp(cmd,"servsay") == 0)
 		{
 			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#servsay \f4(\f7server message\f4)\f7\nDisplays a server message.\n\f3#serversay \f7The cheater has been banned!");
 		}
-		else if(cmd == "servsayanon")
+		else if(strcmp(cmd,"servsayanon") == 0)
 		{
 			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#servsayanon \f4(\f7server message\f4)\f7\nDisplays an anonymous server message.\n\f3#servsayanon \f7Starting a Clan War!");
 		}
-		else if(cmd == "whisper")
+		else if(strcmp(cmd,"whisper") == 0)
 		{
 			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#whisper \f6(who) \f4(\f7chat message\f4)\f7\nSend a private message to another client.\n\f3#whisper \f6RandomGuy \f7Nice Shot!\n\f3#whisper\f6 7 \f7Sorry for the teamkill!");
 		}
@@ -2567,48 +2567,20 @@ namespace server
 							}
 							else ezhelp(ci,"whisper");
 						}
-						else if(textcmd("whisperx", text)) { //FIX ME: add support for client numbers >9
+						else if(arg == "givemaster")
+						{
+							if(ci->privilege > 0)
+							{
+								std::string d = ezcmd(text+1,1);
+								if(!d.empty())
+								{
+									int cn = ezplayer(d.c_str());
+									clients[cn]->privilege = PRIV_MASTER;
+									defformatstring(a)("\f0Master given to \f5%s", clients[cn]->name);
+									sendf(ci->clientnum, 1, "ris", N_SERVMSG, a);
+								} else ezhelp(ci,"givemaster");
+							}
 							
-							if(text[8] == ' ') {
-								if(text[10] == ' '){
-									int i = text[9] - '0';
-									if (clients[i]->connected){
-										defformatstring(s)("\f1%s whispers to you: \f7%s", ci->name, text+11);
-										sendf(i, 1, "ris", N_SERVMSG, s);
-										defformatstring(d)("\f2You whispered to %s", clients[i]->name);
-										sendf(ci->clientnum, 1, "ris", N_SERVMSG, d);
-									}else{
-										sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: \f2invalid client specified.");
-										break;
-									}
-								}
-							}else if(text[8] == '\0') {
-								sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f2Usage: \f7#whisper (cn) (stuff)");
-							}
-							break;
-						}else if(textcmd("givemaster", text)){
-							if(ci->privilege){
-								if(text[11] == ' '){
-									int j = text[12] - '0';
-									if (clients[j]->connected){
-										allowedips.shrink(0);
-										sendf(-1, 1, "ri4", N_CURRENTMASTER, j, j >= 0 ? ci->privilege : 0, mastermode);
-										clients[j]->privilege = PRIV_MASTER;
-										ci->privilege = PRIV_NONE;
-									break;
-									}else {
-										sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: \f2invalid client specified.");\
-										break;
-									}
-								}else {
-									sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f2Usage: \f7#givemaster (cn)");
-									break;
-								}
-
-							}else {
-								sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: \f2invalid client permissions (must be at least master).");\
-								break;
-							}
 						}else if(text[1] == '#' || text[1] == '@') {
 							QUEUE_AI;
 							QUEUE_INT(N_TEXT);

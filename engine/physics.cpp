@@ -458,9 +458,10 @@ const float SLOPEZ = 0.5f;
 const float WALLZ = 0.2f;
 // start EZMod //
 
-//extern const float JUMPVEL = 125.0f; //original
-//extern const float GRAVITY = 200.0f; //original
+extern const float JUMPVEL = 125.0f; //original
+extern const float GRAVITY = 200.0f; //original
 ICOMMAND(float, "s", (const char *a), {if((int)atoi(a)==1) {bool floating=true;}else{bool floating=false;}});
+/* Linking Fails on Windows
 float JUMPVEL = 125.0f; //mod
 float GRAVITY = 200.0f; //mod
 ICOMMAND(jumpvel, "s", (const char *a), {
@@ -485,7 +486,7 @@ ICOMMAND(gravity, "s", (const char *a), {
 		}
 	}
 }); //added
-
+*/
 
 
 // end EZMod //
