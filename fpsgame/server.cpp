@@ -19,6 +19,7 @@ extern ENetAddress masteraddress;
 
 namespace server
 {
+	VAR(ezeditautomute,0,0,1);
     struct server_entity            // server side version of "entity" type
     {
         int type;
@@ -229,7 +230,7 @@ namespace server
         bool warned, gameclip;
         ENetPacket *clipboard;
         int lastclipboard, needclipboard;
-		bool mute;
+		bool mute,editmute;
 
         clientinfo() : clipboard(NULL) { reset(); }
         ~clientinfo() { events.deletecontents(); cleanclipboard(); }
@@ -521,6 +522,18 @@ namespace server
 		else if(strcmp(cmd,"whisper")==0)
 		{
 			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#whisper \f6(who) \f4(\f7chat message\f4)\f7\nSend a private message to another client.\n\f3#whisper \f6RandomGuy \f7Nice Shot!\n\f3#whisper\f6 7 \f7Sorry for the teamkill!");
+		}
+		else if(strcmp(cmd,"mute")==0)
+		{
+			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#mute \f6(who)\f7\nMute a player.\n\f3#mute \f6RandomGuy\n\f3#mute\f6 7");
+		}
+		else if(strcmp(cmd,"edit")==0)
+		{
+			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#edit \f7automute (on/off), muteall, unmuteall , mute (player), unmute (player).");
+		}
+		else if(strcmp(cmd,"givemaster")==0)
+		{
+			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#givemaster \f6(who)\f7\nGive a player master status.\n\f3#givemaster \f6RandomGuy\n\f3#givemaster\f6 7");
 		}
 		else
 		{
@@ -2197,6 +2210,7 @@ namespace server
                 clients.add(ci);
 
                 ci->connected = true;
+				if(ezeditautomute == 1) ci->editmute = true;
                 ci->needclipboard = totalmillis;
                 if(mastermode>=MM_LOCKED) ci->state.state = CS_SPECTATOR;
                 ci->state.lasttimeplayed = lastmillis;
@@ -2317,7 +2331,7 @@ namespace server
             case N_EDITMODE:
             {
                 int val = getint(p);
-                if(!ci->local && !m_edit) break;
+				if((!ci->local && !m_edit) || ci->editmute) break;
                 if(val ? ci->state.state!=CS_ALIVE && ci->state.state!=CS_DEAD : ci->state.state!=CS_EDITING) break;
                 if(smode)
                 {
@@ -2578,6 +2592,67 @@ namespace server
 								sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
 							}
 							else ezhelp(ci,"mute");
+						}
+						else if(arg == "edit" && ci->privilege > 0)
+						{
+							string l,e,a;
+							arg = ezcmd(text+1,1);
+							if(arg == "automute")
+							{
+								arg = ezcmd(text+1,2);
+								if(arg == "on") ezeditautomute = 1;
+								else if(arg == "off") ezeditautomute = 0;
+								else ezeditautomute = ezeditautomute == 1 ? 0 : 1; // toggle
+								if(ezeditautomute == 1) formatstring(l)("\f0Auto mute editors enabled!");
+								else formatstring(l)("\f0Auto mute editors disabled!");
+							}
+							else if(arg == "mute")
+							{
+								std::string d = ezcmd(text+1,2);
+								if(!d.empty()) {
+									int cn = ezplayer(d.c_str());
+									if(cn >= 0) {
+										clients[cn]->editmute = true;
+										formatstring(l)("\f1Muted edits by \f5%s",clients[cn]->name);
+									} else {
+										formatstring(l)("\f3Failed!");
+									}
+								} else {
+									ci->editmute = true;
+									formatstring(l)("\f3Muted your edits!");
+								}
+								sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
+							}
+							else if(arg == "unmute")
+							{
+								std::string d = ezcmd(text+1,2);
+								if(!d.empty()) {
+									int cn = ezplayer(d.c_str());
+									if(cn >= 0) {
+										clients[cn]->editmute = false;
+										formatstring(l)("\f1Unmuted edits by \f5%s",clients[cn]->name);
+									} else {
+										formatstring(l)("\f3Failed!");
+									}
+								} else {
+									ci->editmute = false;
+									formatstring(l)("\f3Unmuted your edits!");
+								}
+								sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
+							}
+						}
+						else if(arg == "kill"&&ci->privilege>0)
+						{
+						   std::string d = ezcmd(text+1,1);
+						   if(!d.empty()) 
+						   {
+							  int cn = ezplayer(d.c_str());
+							  d = ezcmd(text+1,2,true);
+							  if(!d.empty() && cn >=0)
+							  {
+								 sendf(-1, 1, "ri4", N_DIED, clients[cn]->clientnum, ci->clientnum, ci->state.frags);
+							  }
+						   }
 						}
 						else if(text[1] == '#' || text[1] == '@') {
 							QUEUE_AI;
