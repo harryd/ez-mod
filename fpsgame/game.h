@@ -15,7 +15,6 @@ enum
     CON_TEAMKILL   = 1<<13
 };
 
-#define SH 16.0f
 // network quantization scale
 #define DMF 16.0f                // for world locations
 #define DNF 100.0f              // for normalized vectors
