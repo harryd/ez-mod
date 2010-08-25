@@ -19,7 +19,7 @@ extern ENetAddress masteraddress;
 
 namespace server
 {
-	VAR(ezeditautomute,0,0,1);
+	VAR(editautomute,0,0,1);
     struct server_entity            // server side version of "entity" type
     {
         int type;
@@ -482,122 +482,6 @@ namespace server
         }
         return false;
     }
-	 //EZ test
-	std::string ezcmd(const std::string &text, int index, bool toend = false)
-	{
-		uint space;
-		std::string arg(""),substr(text);
-		for(int seg = 0, args = 0; seg <= index; seg++)
-		{
-			space = substr.find_first_of(' ');
-			if(space != std::string::npos)
-			{
-				if(!toend) arg = substr.substr(0,space);
-				else arg = substr;
-				substr = substr.substr(space+1,substr.length());
-				args++;
-			}
-			else if(index == 0) //Wishing for the first argument
-			{
-				return text;
-			}
-			else if(!substr.empty() && args == index) //Are we caught on the last one with no more spaces?
-			{
-				return substr;
-			}
-			else return "";
-		}
-		return arg;
-	}
-	void ezhelp(const clientinfo * ci, const char * cmd)
-	{
-		if(strcmp(cmd,"servsay")==0)
-		{
-			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#servsay \f4(\f7server message\f4)\f7\nDisplays a server message.\n\f3#serversay \f7The cheater has been banned!");
-		}
-		else if(strcmp(cmd,"servsayanon")==0)
-		{
-			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#servsayanon \f4(\f7server message\f4)\f7\nDisplays an anonymous server message.\n\f3#servsayanon \f7Starting a Clan War!");
-		}
-		else if(strcmp(cmd,"whisper")==0)
-		{
-			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#whisper \f6(who) \f4(\f7chat message\f4)\f7\nSend a private message to another client.\n\f3#whisper \f6RandomGuy \f7Nice Shot!\n\f3#whisper\f6 7 \f7Sorry for the teamkill!");
-		}
-		else if(strcmp(cmd,"mute")==0)
-		{
-			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#mute \f6(who)\f7\nMute a player.\n\f3#mute \f6RandomGuy\n\f3#mute\f6 7");
-		}
-		else if(strcmp(cmd,"edit")==0)
-		{
-			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#edit \f7automute (on/off), muteall, unmuteall , mute (player), unmute (player).");
-		}
-		else if(strcmp(cmd,"givemaster")==0)
-		{
-			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Usage: \f3#givemaster \f6(who)\f7\nGive a player master status.\n\f3#givemaster \f6RandomGuy\n\f3#givemaster\f6 7");
-		}
-		else
-		{
-			sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Current server commands are: \f3#servsay\f7, \f3#servsayanon\f7, and \f3#whisper\f7.\nType \f3#help \f4(\f7command name\f4)\f7 for more information.");
-		}
-	}
-	int ezplayer(const char * name) {
-		char *end;
-        int n = strtol(name, &end, 10);
-        if(*name && !*end)
-        {
-			loopv(clients) if(clients[i]->clientnum == n) return n;
-            return -2;
-        }
-        // try case sensitive first
-        loopv(clients)
-        {
-            clientinfo *o = clients[i];
-            if(!strcmp(name, o->name)) return o->clientnum;
-			//defformatstring(s)("%s ?== %s",name,o->name );
-			//sendservmsg(s);
-        }
-        // nothing found, try case insensitive
-        loopv(clients)
-        {
-            clientinfo *o = clients[i];
-            if(!strcasecmp(name, o->name)) return o->clientnum;
-			//defformatstring(s)("%s ?== %s",name,o->name );
-			//sendservmsg(s);
-        }
-        return -1;
-	}
-	string blkmsg[3] = {"fuck", "shit", "cunt"};
-	char textcmd(const char *a, const char *text){
-		for (int b=0; b<int(strlen(a)); b++) {
-			if (text[b+1] != a[b]) {
-				return false;
-			}
-		}
-		if(text[strlen(a)+1] != ' ' && text[strlen(a)+1] != '\0') {
-			for (int l=0; l<3; l++) {
-				if (strcmp(blkmsg[l], a)) {
-					return true;
-					break;
-				}
-			}
-			return false;
-		}
-		return true;
-	}
-	void textblk(const char *b, char *text, clientinfo *ci){
-		bool bad=false;
-		for (int a=0; a<int(strlen(text)); a++) {
-			if(textcmd(b, text+a-1)) bad=true;
-		}
-		if(bad){
-			int n = rand() % 7 + 0;
-			defformatstring(d)("\f%iO_o  \f0%s!", n, ci->name);
-			sendservmsg(d);
-			bad=false;
-		}
-	}
-	//EZ test
-
     void serverinit()
     {
         smapname[0] = '\0';
@@ -2177,6 +2061,269 @@ namespace server
         }
     }
 
+
+	enum { T_ONE = 0, T_OTHER_SPECTATOR, T_SPECTATOR, T_OTHER_PLAYER, T_PLAYER, T_OTHER_ALL, T_ALL, T_OTHER_TEAM, T_TEAM, T_ENEMY };
+
+	std::string getarg(const char * text, int index, bool toend = false)
+	{
+		uint space;
+		std::string arg(""),substr(text);
+		for(int seg = 0, args = 0; seg <= index; seg++)
+		{
+			space = substr.find_first_of(' ');
+			if(space != std::string::npos)
+			{
+				if(!toend) arg = substr.substr(0,space);
+				else arg = substr;
+				substr = substr.substr(space+1,substr.length());
+				args++;
+			}
+			else if(index == 0) //Wishing for the first argument
+			{
+				return text;
+			}
+			else if(!substr.empty() && args == index) //Are we caught on the last one with no more spaces?
+			{
+				return substr;
+			}
+			else return "";
+		}
+		return arg;
+	}
+	int parsename(const char * name) {
+		char *end;
+        int n = strtol(name, &end, 10);
+        if(*name && !*end)
+        {
+			loopv(clients) if(clients[i]->clientnum == n) return n;
+            return -2;
+        }
+        // try case sensitive first
+        loopv(clients)
+        {
+            clientinfo *o = clients[i];
+            if(!strcmp(name, o->name)) return o->clientnum;
+			//defformatstring(s)("%s ?== %s",name,o->name );
+			//sendservmsg(s);
+        }
+        // nothing found, try case insensitive
+        loopv(clients)
+        {
+            clientinfo *o = clients[i];
+            if(!strcasecmp(name, o->name)) return o->clientnum;
+			//defformatstring(s)("%s ?== %s",name,o->name );
+			//sendservmsg(s);
+        }
+        return -1;
+	}
+	//Overloading
+	int parsename(std::string &name) { return parsename(name.c_str()); }
+	void sendmsg(int target, clientinfo * ci, char * message, ...) {
+		int type = N_SERVMSG;
+		va_list args;
+		va_start(args,message);
+		string formated;
+		vformatstring(formated, message, args);
+		switch(target) {
+			case T_ONE:
+				sendf(ci->clientnum, 1, "ris", type, formated);
+				break;
+			case T_OTHER_SPECTATOR:
+				loopv(clients) {
+					if(clients[i]->state.state == CS_SPECTATOR && clients[i] != ci)  sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+			case T_SPECTATOR:
+				loopv(clients) {
+					if(clients[i]->state.state == CS_SPECTATOR)  sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+			case T_OTHER_PLAYER:
+				loopv(clients) {
+					if(clients[i]->state.state != CS_SPECTATOR && clients[i] != ci)  sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+			case T_PLAYER:
+				loopv(clients) {
+					if(clients[i]->state.state != CS_SPECTATOR)  sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+			case T_OTHER_ALL:
+				loopv(clients) {
+					if(clients[i] != ci)  sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+			case T_ALL:
+				loopv(clients) {
+					sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+			case T_OTHER_TEAM:
+				loopv(clients) {
+					if(clients[i]->team == ci->team && clients[i] != ci) sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+			case T_TEAM:
+				loopv(clients) {
+					if(clients[i]->team == ci->team) sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+			case T_ENEMY:
+				loopv(clients) {
+					if(clients[i]->team != ci->team) sendf(clients[i]->clientnum, 1, "ris", type, formated);
+				}
+				break;
+		}
+		va_end(args);
+	}
+	std::string lowercase(std::string str) {
+		std::transform(str.begin(), str.end(),str.begin(), ::tolower);
+		return str;
+	}
+	bool parsebool(std::string bools) {
+		std::transform(bools.begin(), bools.end(),bools.begin(), ::tolower);
+		if(bools == "on" || bools == "active" || bools == "true" || bools == "yes" || bools == "1") return true;
+		else return false;
+	}
+	/*
+							"\f0Green"
+							"\f1Blue"
+							"\f2Yellow"
+							"\f3Red"
+							"\f4Grey"
+							"\f5Purple"
+							"\f6Orange"
+							"\f7White"
+	\f0 Green Player Status Messages
+	\f1 Blue Server Status Messages
+	\f2 Yellow Command Paramaters
+	\f3 Red Errors
+
+
+	\f7 White General Text
+	*/
+	//************* MESSAGES **************************//
+
+	//ERRORS
+	static void ms_invalidplayer(clientinfo * actor, std::string input = "") { sendmsg(T_ONE,actor,!input.empty() ? "\f3Error: \f7Please be sure to provid a valid player, \f2%s \f7does not exsist." : "\f3Error: \f7Please be sure to provid a valid player.%s",input.c_str()); }
+	static void ms_editmuted(clientinfo * actor) { sendmsg(T_ONE,actor,"\f3Error: \f7Your edits are \f3muted\f7. Any changes you make, you alone will see."); }
+	static void ms_muted(clientinfo * actor) { sendmsg(T_ONE,actor,"\f3Error: \f7You are \f3muted\f7. Any messages you make, you alone will see."); }
+	static void ms_unknowncmd(clientinfo * actor) { sendmsg(T_ONE,actor,"\f3Error: \f7That command is unknown."); }
+	//SERVER INFO MESSAGES
+	static void ms_svarchange(clientinfo * actor, const char * var, const char * state) { sendmsg(T_ALL,actor, "\f1Server: \f2%s \f7has changed \f2%s \f7to \f2%s\f7.",actor->name,var,state); }
+	static void ms_editmute(clientinfo * actor, clientinfo * target, bool on) { sendmsg(T_ONE,target,"\f0Your edits have been \f3%s \f0by \f2%s\f0.",on?"muted":"unmuted",actor->name); }
+	static void ms_editmute_other(clientinfo * actor, clientinfo * target, bool on) { sendmsg(T_OTHER_ALL,target,"\f1Server: \f2%s%s \f7edits have been \f3%s \f7by \f2%s\f7.",target->name,tolower(target->name[strlen(target->name)-1]) == 's' ? "'" : "'s",on?"muted":"unmuted",actor->name); }
+	static void ms_mute(clientinfo * actor, clientinfo * target, bool on) { sendmsg(T_ONE,target,"\f0You have been \f3% \f0by \f2%s\f0.",on?"muted":"unmuted",actor->name); }
+
+	//************* COMMANDS **************************//
+	void cmd_edit(char * message, clientinfo * actor) {
+		std::string arg = getarg(message,1);
+		arg = lowercase(arg);
+		if(arg == "automute") {
+			arg = getarg(message,2);
+			if(!arg.empty()) {
+				editautomute = parsebool(arg);
+			}
+			else { //No value so toggle
+				editautomute = editautomute == 1 ? 0 : 1;
+			}
+			ms_svarchange(actor,"Edit::automute",editautomute == 1 ? "On" : "Off");
+		}
+		else if(arg == "mute") {
+			arg = getarg(message,2);
+			if(!arg.empty() && lowercase(arg) != "all") {
+				int cn = parsename(arg);
+				if(cn >= 0) {
+					if(!clients[cn]->editmute) {
+						clients[cn]->editmute = true;
+						ms_editmute(actor,clients[cn],true);
+						ms_editmute_other(actor,clients[cn],true);
+					}
+				} else ms_invalidplayer(actor,arg);
+			}
+			else if(!arg.empty()) {
+				sendmsg(T_ALL,actor,"\f1Server: \f7All player's edits have been \f3muted\f7.",actor->name);
+				loopv(clients) {
+					if(!clients[i]->editmute) {
+						clients[i]->editmute = true;
+						ms_editmute(actor,clients[i],true);
+					}
+				}
+			}
+			else {
+				loopv(clients) {
+					if(clients[i]->editmute) sendmsg(T_ONE,actor,"\f2%s%s \f7edits are \f3muted\f7.",clients[i],/* The following chooses between 's or ' folloing the target's name. */tolower(clients[i]->name[strlen(clients[i]->name)-1]) == 's' ? "'" : "'s");
+				}
+			}
+		}
+		else if(arg == "unmute") {
+			arg = getarg(message,2);
+			if(!arg.empty() && lowercase(arg) != "all") {
+				int cn = parsename(arg);
+				if(cn >= 0) {
+					if(clients[cn]->editmute) {
+						clients[cn]->editmute = false;
+						ms_editmute(actor,clients[cn],false);
+						ms_editmute_other(actor,clients[cn],false);
+					}
+				} else ms_invalidplayer(actor,arg);
+			}
+			else if(!arg.empty()) {
+				sendmsg(T_ALL,actor,"\f1Server: \f7All players have been \f3unmuted\f7.",actor->name);
+				loopv(clients) {
+					if(clients[i]->editmute) {
+						clients[i]->editmute = false;
+						ms_editmute(actor,clients[i],false);
+					}
+				}
+			}
+			else {
+				loopv(clients) {
+					if(clients[i]->editmute) sendmsg(T_ONE,actor,"\f2%s%s \f7edits are \f3unmuted\f7.",clients[i],/* The following chooses between 's or ' folloing the target's name. */tolower(clients[i]->name[strlen(clients[i]->name)-1]) == 's' ? "'" : "'s");
+				}
+			}
+		}
+	}
+	void cmd_mute(char * message, clientinfo * actor) {
+		std::string arg = getarg(message,1);
+		if(!arg.empty()) {
+			int cn = parsename(arg);
+			if(cn >= 0) {
+				if(!clients[cn]->mute) {
+					clients[cn]->mute = true;
+					ms_mute(actor,clients[cn],true);
+				}
+			} else ms_invalidplayer(actor,arg);
+		} else ms_invalidplayer(actor);
+	}
+	void cmd_unmute(char * message, clientinfo * actor) {
+		std::string arg = getarg(message,2);
+		if(!arg.empty()) {
+			int cn = parsename(arg);
+			if(cn >= 0) {
+				if(clients[cn]->mute) {
+					clients[cn]->mute = false;
+					ms_mute(actor,clients[cn],false);
+				}
+			} else ms_invalidplayer(actor,arg);
+		} else ms_invalidplayer(actor);
+	}
+	//0 : Normal
+	//1 : Master
+	//2 : Admin
+	//3 : Owner
+	//4 : UNAVALIABLE COMMAND
+	VAR(cmd_edit_perm,0,1,4);
+	VAR(cmd_mute_perm,0,1,4);
+	void parsecommands(char * message, clientinfo * actor) {
+		std::string cmd = getarg(message, 0);
+		cmd = lowercase(cmd);
+		if(cmd == "edit" && cmd_edit_perm <= actor->privilege) cmd_edit(message, actor);
+		else if(cmd == "mute" && cmd_mute_perm <= actor->privilege) cmd_mute(message, actor);
+		else if(cmd == "unmute" && cmd_mute_perm <= actor->privilege) cmd_unmute(message, actor);
+		else ms_unknowncmd(actor);
+	}
+
     void parsepacket(int sender, int chan, packetbuf &p)     // has to parse exactly each byte of the packet
     {
 		bool edit = false;
@@ -2212,7 +2359,7 @@ namespace server
 
                 ci->connected = true;
 				ci->mute = false;
-				if(ezeditautomute == 1) {ci->editmute = true; sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Your edits have been muted!");}
+				if(editautomute == 1) {ci->editmute = true; sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3You are not allowed to edit!");}
                 ci->needclipboard = totalmillis;
                 if(mastermode>=MM_LOCKED) ci->state.state = CS_SPECTATOR;
                 ci->state.lasttimeplayed = lastmillis;
@@ -2488,230 +2635,23 @@ namespace server
                 break;
             }
 				
-				//EZ test
-			case N_TEXT:
+           case N_TEXT:
             {
-                getstring(text, p);
-                filtertext(text, text);
-                
-                if(ci)
-                {
-                    if((text[0] == '#' || text[0] == '@') && (!ci->mute || ci->privilege > 0)) {
-						std::string arg = ezcmd(text+1,0);
-						
+				if(ci->mute && ci->privilege < cmd_mute_perm) {
 
-						/*
-							"\f0Green"
-							"\f1Blue"
-							"\f2Yellow"
-							"\f3Red"
-							"\f4Grey"
-							"\f5Purple"
-							"\f6Orange"
-							"\f7White"
-
-							Color as follows:
-							\f3   Red     Commands
-							\f4   Grey    multi-argument strings
-							\f6   Orange  Client Number / Player Name
-							\f2   Yellow  Server Messages
-							\f0   Green   Client Status Messages
-							\f1   Blue    Messages directed at a single client
-							\f7   White   Any other text
-							\f5   Purple  Player Names
-						*/
-						if(arg == "help")
-						{
-							arg = ezcmd(text+1,1); //Pull first arg
-							ezhelp(ci,arg.c_str());
-						}
-						else if(arg == "servsay") 
-						{
-							arg = ezcmd(text+1,1,true);
-							if(!arg.empty())
-							{
-								//message("* \f1%s\f7 %s", ci->name, c);
-								defformatstring(s)("\f5%s: \f7%s", ci->name, arg.c_str());
-								sendservmsg(s);
-							}
-							else ezhelp(ci,"servsay");
-						}
-						else if(arg == "servsayanon") {
-							arg = ezcmd(text+1,1,true);
-							if(!arg.empty())
-							{
-								defformatstring(d)("\f2%s", arg.c_str());
-								sendservmsg(d);
-							}
-							else ezhelp(ci,"servsayanon");
-						}
-						else if(arg == "whisper")
-						{
-							std::string d = ezcmd(text+1,1);
-							if(!d.empty())
-							{
-								int cn = ezplayer(d.c_str());
-								d = ezcmd(text+1,2,true);
-								if(!d.empty() && cn >=0)
-								{
-									defformatstring(s)("\f5%s to %s->\f1%s", ci->name, clients[cn]->name,d.c_str());
-									sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
-									defformatstring(a)("\f5%s->\f1%s", ci->name,d.c_str());
-									sendf(clients[cn]->clientnum, 1, "ris", N_SERVMSG, a);
-								} else ezhelp(ci,"whisper");
-							}
-							else ezhelp(ci,"whisper");
-						}
-						else if(arg == "givemaster" && ci->privilege > 0)
-						{
-							std::string d = ezcmd(text+1,1);
-							if(!d.empty())
-							{
-								int cn = ezplayer(d.c_str());
-								if(cn >= 0) {
-									clients[cn]->privilege = PRIV_MASTER;
-									defformatstring(a)("\f0Master given to \f5%s\n\f0mastermode remains %s (%d)", clients[cn]->name, mastermodename(mastermode), mastermode);
-									sendf(ci->clientnum, 1, "ris", N_SERVMSG, a);
-								} else sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Failed!");
-							} else ezhelp(ci,"givemaster");
-						}
-						else if(arg == "mute" && ci->privilege > 0)
-						{
-							std::string d = ezcmd(text+1,1);
-							if(!d.empty())
-							{
-								string s;
-								int cn = ezplayer(d.c_str());
-								if(cn >= 0)
-								{
-									formatstring(s)("\f1Muted \f5%s",clients[cn]->name);
-									clients[cn]->mute = true;
-									sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
-								} else sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Failed!");
-							}
-							else ezhelp(ci,"mute");
-						}
-						else if(arg == "unmute" && ci->privilege > 0)
-						{
-							std::string d = ezcmd(text+1,1);
-							if(!d.empty())
-							{
-								string s;
-								int cn = ezplayer(d.c_str());
-								if(cn >= 0)
-								{
-									formatstring(s)("\f1Unmuted \f5%s",clients[cn]->name);
-									clients[cn]->mute = false;
-									sendf(ci->clientnum, 1, "ris", N_SERVMSG, s);
-								} else sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Failed!");
-							}
-							else ezhelp(ci,"unmute");
-						}
-						else if(arg == "edit" && ci->privilege > 0)
-						{
-							string l,e,a;
-							arg = ezcmd(text+1,1);
-							if(arg == "automute")
-							{
-								arg = ezcmd(text+1,2);
-								if(arg == "on") ezeditautomute = 1;
-								else if(arg == "off") ezeditautomute = 0;
-								else ezeditautomute = ezeditautomute == 1 ? 0 : 1; // toggle
-								if(ezeditautomute == 1) formatstring(l)("\f0Auto-mute editors enabled!");
-								else formatstring(l)("\f0Auto-mute editors disabled!");
-								//sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
-								sendservmsg(l);
-							}
-							else if(arg == "mute")
-							{
-								std::string d = ezcmd(text+1,2);
-								if(!d.empty()) {
-									int cn = ezplayer(d.c_str());
-									if(cn >= 0) {
-										clients[cn]->editmute = true;
-										formatstring(l)("\f1Muted edits by \f5%s",clients[cn]->name);
-										sendf(clients[cn]->clientnum, 1, "ris", N_SERVMSG, "\f3Your edits have been muted!");
-									} else {
-										formatstring(l)("\f3Failed!");
-									}
-								} else {
-									ci->editmute = true;
-									formatstring(l)("\f3Muted your edits!");
-								}
-								sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
-							}
-							else if(arg == "unmute")
-							{
-								std::string d = ezcmd(text+1,2);
-								if(!d.empty()) {
-									int cn = ezplayer(d.c_str());
-									if(cn >= 0) {
-										clients[cn]->editmute = false;
-										formatstring(l)("\f1Unmuted edits by \f5%s",clients[cn]->name);
-										sendf(clients[cn]->clientnum, 1, "ris", N_SERVMSG, "\f0Your edits have been unmuted.");
-									} else {
-										formatstring(l)("\f3Failed!");
-									}
-								} else {
-									ci->editmute = false;
-									formatstring(l)("\f3Unmuted your edits!");
-								}
-								sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
-							}
-						}
-						else if(arg == "kill" && ci->privilege > 0)
-						{
-							std::string d = ezcmd(text+1,1);
-							if(!d.empty()) 
-							{
-								int cn = ezplayer(d.c_str());
-								if(cn >= 0) {
-									gamestate &ts = clients[cn]->state;
-									sendf(-1, 1, "ri4", N_DIED, clients[cn]->clientnum, ci->clientnum, ci->state.frags);
-									clients[cn]->position.setsize(0);
-									if(smode) smode->died(clients[cn], ci);
-									ts.state = CS_DEAD;
-									ts.lastdeath = gamemillis;
-								}
-						   } else ezhelp(ci,"kill");
-						}
-						else if(text[1] == '#' || text[1] == '@') {
-							QUEUE_AI;
-							QUEUE_INT(N_TEXT);
-							QUEUE_STR(text+1);
-							break;
-						}else{
-							sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: \f2Command not found");
-							break;
-						}
-                    }else {
-						if(ci->mute)
-						{
-							sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3You are mute!");
-						}
-						else
-						{
-							for (int a=0; a<int(strlen(*blkmsg)-1); a++) {
-								textblk(blkmsg[a], text, ci);
-							}
-							QUEUE_AI;
-							QUEUE_INT(N_TEXT);
-							QUEUE_STR(text);
-						}
+				}
+				else {
+					QUEUE_AI;
+					QUEUE_MSG;
+					getstring(text, p);
+					filtertext(text, text);
+					if(text[0] == '@') {
+						parsecommands(text+1,ci);
 					}
+					else QUEUE_STR(text);
 				}
                 break;
-            } //EZ test
-
-           /* case N_TEXT:
-            {
-                QUEUE_AI;
-                QUEUE_MSG;
-                getstring(text, p);
-                filtertext(text, text);
-                QUEUE_STR(text);
-                break;
-            }*/
+            }
 
             case N_SAYTEAM:
             {
