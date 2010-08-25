@@ -2179,6 +2179,7 @@ namespace server
 
     void parsepacket(int sender, int chan, packetbuf &p)     // has to parse exactly each byte of the packet
     {
+		bool edit = false;
         if(sender<0) return;
         char text[MAXTRANS];
         int type;
@@ -2211,7 +2212,7 @@ namespace server
 
                 ci->connected = true;
 				ci->mute = false;
-				if(ezeditautomute == 1) ci->editmute = true;
+				if(ezeditautomute == 1) {ci->editmute = true; sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Your edits have been muted!");}
                 ci->needclipboard = totalmillis;
                 if(mastermode>=MM_LOCKED) ci->state.state = CS_SPECTATOR;
                 ci->state.lasttimeplayed = lastmillis;
@@ -2569,7 +2570,7 @@ namespace server
 								int cn = ezplayer(d.c_str());
 								if(cn >= 0) {
 									clients[cn]->privilege = PRIV_MASTER;
-									defformatstring(a)("\f0Master given to \f5%s", clients[cn]->name);
+									defformatstring(a)("\f0Master given to \f5%s\n\f0mastermode remains %s (%d)", clients[cn]->name, mastermodename(mastermode), mastermode);
 									sendf(ci->clientnum, 1, "ris", N_SERVMSG, a);
 								} else sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Failed!");
 							} else ezhelp(ci,"givemaster");
@@ -2616,9 +2617,10 @@ namespace server
 								if(arg == "on") ezeditautomute = 1;
 								else if(arg == "off") ezeditautomute = 0;
 								else ezeditautomute = ezeditautomute == 1 ? 0 : 1; // toggle
-								if(ezeditautomute == 1) formatstring(l)("\f0Auto mute editors enabled!");
-								else formatstring(l)("\f0Auto mute editors disabled!");
-								sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
+								if(ezeditautomute == 1) formatstring(l)("\f0Auto-mute editors enabled!");
+								else formatstring(l)("\f0Auto-mute editors disabled!");
+								//sendf(ci->clientnum, 1, "ris", N_SERVMSG, l);
+								sendservmsg(l);
 							}
 							else if(arg == "mute")
 							{
@@ -2628,6 +2630,7 @@ namespace server
 									if(cn >= 0) {
 										clients[cn]->editmute = true;
 										formatstring(l)("\f1Muted edits by \f5%s",clients[cn]->name);
+										sendf(clients[cn]->clientnum, 1, "ris", N_SERVMSG, "\f3Your edits have been muted!");
 									} else {
 										formatstring(l)("\f3Failed!");
 									}
@@ -2645,6 +2648,7 @@ namespace server
 									if(cn >= 0) {
 										clients[cn]->editmute = false;
 										formatstring(l)("\f1Unmuted edits by \f5%s",clients[cn]->name);
+										sendf(clients[cn]->clientnum, 1, "ris", N_SERVMSG, "\f0Your edits have been unmuted.");
 									} else {
 										formatstring(l)("\f3Failed!");
 									}
@@ -2657,16 +2661,19 @@ namespace server
 						}
 						else if(arg == "kill" && ci->privilege > 0)
 						{
-						   std::string d = ezcmd(text+1,1);
-						   if(!d.empty()) 
-						   {
-							  int cn = ezplayer(d.c_str());
-							  d = ezcmd(text+1,2,true);
-							  if(!d.empty() && cn >=0)
-							  {
-								 sendf(-1, 1, "ri4", N_DIED, clients[cn]->clientnum, ci->clientnum, ci->state.frags);
-							  }
-						   }
+							std::string d = ezcmd(text+1,1);
+							if(!d.empty()) 
+							{
+								int cn = ezplayer(d.c_str());
+								if(cn >= 0) {
+									gamestate &ts = clients[cn]->state;
+									sendf(-1, 1, "ri4", N_DIED, clients[cn]->clientnum, ci->clientnum, ci->state.frags);
+									clients[cn]->position.setsize(0);
+									if(smode) smode->died(clients[cn], ci);
+									ts.state = CS_DEAD;
+									ts.lastdeath = gamemillis;
+								}
+						   } else ezhelp(ci,"kill");
 						}
 						else if(text[1] == '#' || text[1] == '@') {
 							QUEUE_AI;
@@ -3123,13 +3130,14 @@ namespace server
 			case N_DELCUBE:
 			case N_REMIP:
 			case N_SENDMAP:
-			if(ci->editmute) break;
+				edit = true;
             default: genericmsg:
             {
                 int size = server::msgsizelookup(type);
                 if(size<=0) { disconnect_client(sender, DISC_TAGT); return; }
                 loopi(size-1) getint(p);
-                if(ci && cq && (ci != cq || ci->state.state!=CS_SPECTATOR)) { QUEUE_AI; QUEUE_MSG; }
+                if(ci && cq && (ci != cq || ci->state.state!=CS_SPECTATOR) && (!edit || !ci->editmute)) { QUEUE_AI; QUEUE_MSG; }
+				else if(edit &&ci->editmute) sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3You are mute!");
                 break;
             }
         }
